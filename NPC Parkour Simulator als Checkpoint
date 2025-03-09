@@ -1,0 +1,375 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+-- Setup events
+local existingEvents = ReplicatedStorage:FindFirstChild("ParkourEvents")
+if existingEvents then
+	existingEvents:Destroy()
+end
+
+local Events = Instance.new("Folder")
+Events.Name = "ParkourEvents"
+Events.Parent = ReplicatedStorage
+
+-- Create parkour course
+local function createParkourCourse()
+	local checkpoints = {}
+	local start = Instance.new("Part")
+	start.Anchored = true
+	start.Size = Vector3.new(8, 1, 8)
+	start.Position = Vector3.new(0, 0, 0)
+	start.BrickColor = BrickColor.new("Bright green")
+	start.Parent = workspace
+
+	-- First platform
+	local platform1 = Instance.new("Part")
+	platform1.Anchored = true
+	platform1.Size = Vector3.new(8, 1, 8)
+	platform1.Position = Vector3.new(12, 2, 0)
+	platform1.BrickColor = BrickColor.new("Bright yellow")
+	platform1.Parent = workspace
+	table.insert(checkpoints, {part = platform1})
+
+	-- Create ladder using TrussPart
+	local ladder = Instance.new("TrussPart")
+	ladder.Anchored = true
+	ladder.Size = Vector3.new(2, 15, 2)
+	ladder.Position = Vector3.new(24, 7.5, 0)
+	ladder.BrickColor = BrickColor.new("Brown")
+	ladder.Parent = workspace
+
+	-- Add visual rungs (non-functional, just for looks)
+	for i = 1, 7 do
+		local rung = Instance.new("Part")
+		rung.Anchored = true
+		rung.Size = Vector3.new(0.5, 0.5, 4)
+		rung.Position = Vector3.new(24, i * 2, 0)
+		rung.BrickColor = BrickColor.new("Brown")
+		rung.CanCollide = false
+		rung.Parent = workspace
+	end
+
+	-- Platform after ladder (moved closer to ladder)
+	local platformAfterLadder = Instance.new("Part")
+	platformAfterLadder.Anchored = true
+	platformAfterLadder.Size = Vector3.new(8, 1, 8)
+	platformAfterLadder.Position = Vector3.new(30, 15, 0) -- Changed from (36, 15, 0) to (30, 15, 0)
+	platformAfterLadder.BrickColor = BrickColor.new("Bright yellow")
+	platformAfterLadder.Parent = workspace
+	table.insert(checkpoints, {part = platformAfterLadder, isAfterLadder = true})
+
+	-- Create remaining platforms
+	local currentPos = platformAfterLadder.Position
+	local numPlatforms = 8
+
+	for i = 1, numPlatforms do
+		local platform = Instance.new("Part")
+		platform.Anchored = true
+		platform.Size = Vector3.new(8, 1, 8)
+		platform.BrickColor = BrickColor.new("Bright yellow")
+
+		local xOffset = math.random(11, 13)
+		local zOffset = math.random(-3, 3)
+		local yOffset = math.random(-1, 2)
+
+		if i > 1 then
+			local currentZ = currentPos.Z
+			zOffset = -currentZ * 0.3
+		end
+
+		currentPos = currentPos + Vector3.new(xOffset, yOffset, zOffset)
+		platform.Position = currentPos
+		platform.Parent = workspace
+		table.insert(checkpoints, {part = platform})
+	end
+
+	local finish = Instance.new("Part")
+	finish.Anchored = true
+	finish.Size = Vector3.new(8, 1, 8)
+	finish.Position = currentPos + Vector3.new(11, 0, 0)
+	finish.BrickColor = BrickColor.new("Bright red")
+	finish.Parent = workspace
+	table.insert(checkpoints, {part = finish})
+
+	return checkpoints, start, finish, ladder
+end
+
+-- Create simple NPC
+local function createNPC()
+	local character = Instance.new("Model")
+	character.Name = "ParkourNPC"
+
+	local hrp = Instance.new("Part")
+	hrp.Name = "HumanoidRootPart"
+	hrp.Size = Vector3.new(2, 2, 1)
+	hrp.CanCollide = true
+	hrp.Anchored = false
+	hrp.Parent = character
+
+	local humanoid = Instance.new("Humanoid")
+	humanoid.WalkSpeed = 12
+	humanoid.JumpPower = 70
+	humanoid.AutoRotate = true
+	humanoid.Parent = character
+
+	local torso = Instance.new("Part")
+	torso.Name = "Torso"
+	torso.Size = Vector3.new(2, 2, 1)
+	torso.BrickColor = BrickColor.new("Bright blue")
+	torso.Material = Enum.Material.SmoothPlastic
+	torso.CanCollide = true
+	torso.Parent = character
+
+	local head = Instance.new("Part")
+	head.Name = "Head"
+	head.Size = Vector3.new(1, 1, 1)
+	head.BrickColor = BrickColor.new("Bright blue")
+	head.Material = Enum.Material.SmoothPlastic
+	head.CanCollide = true
+	head.Parent = character
+
+	local function createLimb(name, size, x, y, z)
+		local limb = Instance.new("Part")
+		limb.Name = name
+		limb.Size = size
+		limb.BrickColor = BrickColor.new("Bright blue")
+		limb.Material = Enum.Material.SmoothPlastic
+		limb.CanCollide = true
+		limb.Parent = character
+
+		local motor = Instance.new("Motor6D")
+		motor.Name = name .. "Joint"
+		motor.Part0 = torso
+		motor.Part1 = limb
+		motor.C0 = CFrame.new(Vector3.new(x, y, z))
+		motor.Parent = torso
+
+		return limb
+	end
+
+	local rootJoint = Instance.new("Motor6D")
+	rootJoint.Name = "RootJoint"
+	rootJoint.Part0 = hrp
+	rootJoint.Part1 = torso
+	rootJoint.C0 = CFrame.new(0, 0, 0)
+	rootJoint.Parent = hrp
+
+	local neck = Instance.new("Motor6D")
+	neck.Name = "Neck"
+	neck.Part0 = torso
+	neck.Part1 = head
+	neck.C0 = CFrame.new(Vector3.new(0, 1, 0))
+	neck.Parent = torso
+
+	local rightArm = createLimb("Right Arm", Vector3.new(1, 2, 1), 1.5, 0, 0)
+	local leftArm = createLimb("Left Arm", Vector3.new(1, 2, 1), -1.5, 0, 0)
+	local rightLeg = createLimb("Right Leg", Vector3.new(1, 2, 1), 0.5, -2, 0)
+	local leftLeg = createLimb("Left Leg", Vector3.new(1, 2, 1), -0.5, -2, 0)
+
+	character.PrimaryPart = hrp
+	return character
+end
+
+-- NPC movement logic
+local function moveNPC()
+	local checkpoints, start, finish, ladder = createParkourCourse()
+	local npc = createNPC()
+	npc:PivotTo(CFrame.new(start.Position + Vector3.new(0, 5, 0)))
+	npc.Parent = workspace
+
+	local function respawnNPC()
+		if npc and npc.Parent then
+			npc:Destroy()
+		end
+
+		npc = createNPC()
+		npc:PivotTo(CFrame.new(start.Position + Vector3.new(0, 5, 0)))
+		npc.Parent = workspace
+
+		local humanoid = npc:FindFirstChild("Humanoid")
+		if humanoid then
+			humanoid.WalkSpeed = 16
+			humanoid.JumpPower = 55
+			humanoid.Health = 100
+		end
+	end
+
+	local function createSkillMessage(character)
+		local billboardGui = Instance.new("BillboardGui")
+		billboardGui.Size = UDim2.new(0, 100, 0, 30)
+		billboardGui.StudsOffset = Vector3.new(0, 3, 0)
+		billboardGui.Adornee = character:FindFirstChild("Head")
+
+		local textLabel = Instance.new("TextLabel")
+		textLabel.Size = UDim2.new(1, 0, 1, 0)
+		textLabel.BackgroundTransparency = 1
+		textLabel.TextColor3 = Color3.new(1, 0, 0)
+		textLabel.Text = "Skill too low"
+		textLabel.TextScaled = true
+		textLabel.Parent = billboardGui
+
+		return billboardGui
+	end
+
+	spawn(function()
+		while true do
+			respawnNPC()
+			wait(1)
+
+			local humanoid = npc:FindFirstChild("Humanoid")
+			if not humanoid then continue end
+
+			-- First jump from start
+			local firstPlatform = checkpoints[1].part
+			local startPos = npc:GetPivot().Position
+			local firstJumpTarget = firstPlatform.Position + Vector3.new(0, 5, 0)
+
+			local jumpDir = (firstJumpTarget - startPos).Unit
+			local jumpStartPoint = startPos + (jumpDir * -2)
+			local landingPoint = firstJumpTarget + (jumpDir * -2)
+
+			humanoid:MoveTo(jumpStartPoint)
+			wait(0.3)
+			humanoid:MoveTo(landingPoint)
+			wait(0.2)
+			humanoid.Jump = true
+			wait(0.4)
+
+			if npc:GetPivot().Position.Y < -10 then
+				continue
+			end
+
+			-- Continue with rest of course
+			for i, checkpoint in ipairs(checkpoints) do
+				if not npc or not npc.Parent then break end
+				if not humanoid then break end
+
+				wait(0.3)
+
+				local currentPlatform = checkpoint.part
+				local nextPlatform = checkpoints[i + 1] and checkpoints[i + 1].part
+				local currentPos = npc:GetPivot().Position
+
+				if nextPlatform then
+					local centerPos = currentPlatform.Position + Vector3.new(0, 5, 0)
+					humanoid:MoveTo(centerPos)
+					wait(0.3)
+
+					if math.random() < 0.2 then
+						local skillMessage = createSkillMessage(npc)
+						skillMessage.Parent = npc
+
+						local randomAngle = math.random() * math.pi * 2
+						local walkOffDir = Vector3.new(math.cos(randomAngle), 0, math.sin(randomAngle))
+						local walkOffPos = centerPos + (walkOffDir * 20)
+
+						humanoid:MoveTo(walkOffPos)
+						wait(0.5)
+
+						skillMessage:Destroy()
+						break
+					end
+
+					if checkpoint.isAfterLadder then
+						-- Move to ladder base and stop
+						local ladderBase = ladder.Position + Vector3.new(-1, 0, 0)
+						humanoid:MoveTo(ladderBase)
+						wait(0.5)
+						humanoid.WalkSpeed = 0
+						npc:PivotTo(CFrame.new(ladderBase, ladderBase + Vector3.new(1, 0, 0)))
+						wait(1)
+
+						-- Climb ladder
+						local originalSpeed = 16
+						humanoid.WalkSpeed = 4
+						for height = 1, 14, 2 do
+							npc:PivotTo(CFrame.new(ladder.Position + Vector3.new(-1, height, 0)))
+							wait(0.5)
+						end
+
+						-- Stop at ladder top
+						local ladderTop = ladder.Position + Vector3.new(-1, 14, 0)
+						local platformCenter = nextPlatform.Position + Vector3.new(0, 5, 0)
+						humanoid.WalkSpeed = 0
+						npc:PivotTo(CFrame.new(ladderTop, platformCenter.Position))
+						wait(1)
+
+						-- Prepare and jump (shorter distance now)
+						humanoid.WalkSpeed = originalSpeed
+						humanoid.JumpPower = 55 -- Reduced since platform is closer
+						humanoid.Jump = true
+						humanoid:MoveTo(platformCenter)
+						wait(1)
+
+						-- Reset and stabilize
+						humanoid:MoveTo(platformCenter)
+						wait(1)
+
+						currentPos = npc:GetPivot().Position
+						if currentPos.Y < -10 then
+							break
+						end
+					else
+						-- Normal platform jump
+						local nextPos = nextPlatform.Position + Vector3.new(0, 5, 0)
+						local platformDir = (nextPos - centerPos).Unit
+
+						local jumpStartPoint = centerPos + (platformDir * -2)
+						local landingPoint = nextPos + (platformDir * -2)
+
+						humanoid:MoveTo(jumpStartPoint)
+						wait(0.3)
+
+						local heightDifference = nextPos.Y - currentPos.Y
+
+						humanoid:MoveTo(landingPoint)
+						wait(0.2)
+
+						if heightDifference > 0 then
+							humanoid.Jump = true
+						end
+
+						wait(0.4)
+
+						local failedJump = false
+						local jumpTimeout = 0
+						while jumpTimeout < 20 do
+							currentPos = npc:GetPivot().Position
+							if currentPos.Y < -10 then
+								failedJump = true
+								break
+							end
+
+							local distanceToTarget = (currentPos - nextPos).Magnitude
+							if distanceToTarget < 5 then
+								break
+							end
+
+							jumpTimeout = jumpTimeout + 1
+							wait(0.1)
+						end
+
+						if failedJump then
+							break
+						end
+					end
+				else
+					local centerPos = currentPlatform.Position + Vector3.new(0, 5, 0)
+					humanoid:MoveTo(centerPos)
+					wait(0.3)
+				end
+
+				currentPos = npc:GetPivot().Position
+				if currentPos.Y < -10 then
+					break
+				end
+			end
+
+			wait(1)
+		end
+	end)
+end
+
+-- Start the game
+wait(1)
+moveNPC()
